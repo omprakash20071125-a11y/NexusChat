@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexusChat // Real-Time Comms Terminal</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#030712',
+                        cardBg: '#0b0f19',
+                        neonCyan: '#06b6d4',
+                        neonViolet: '#8b5cf6',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Socket.IO Client CDN -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <!-- Lucide Icons (pinned version) -->
+    <script src="https://unpkg.com/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+</head>
+<body class="bg-darkBg text-slate-100 font-mono h-screen flex flex-col overflow-hidden selection:bg-neonViolet selection:text-white">
+
+    <!-- TOP SYSTEM STATUS BAR -->
+    <header class="bg-cardBg border-b border-slate-800 px-4 py-2 flex justify-between items-center text-xs tracking-wider z-10">
+        <div class="flex items-center space-x-3">
+            <span id="socket-status" class="inline-block w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
+            <span id="socket-status-text" class="text-rose-400 font-bold">DISCONNECTED</span>
+        </div>
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2 bg-slate-900 px-3 py-1 rounded border border-slate-800">
+                <span class="text-slate-400">API Gateway:</span>
+                <input id="api-base-url" type="text" value="http://localhost:8000" class="bg-transparent text-neonCyan focus:outline-none w-40 text-right">
+                <button type="button" onclick="updateApiBase()" class="text-slate-400 hover:text-white transition">Set</button>
+            </div>
+            <span class="text-slate-500">|</span>
+            <span class="text-slate-400">NEXUS_PROTOCOL v2.4</span>
+            <span id="current-user-badge" class="hidden text-neonViolet font-bold"></span>
+            <button type="button" id="logout-btn" onclick="logout()" class="hidden text-rose-400 hover:text-rose-300 transition flex items-center space-x-1">
+                <i data-lucide="power" class="w-3.5 h-3.5 inline"></i> <span>Disconnect</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN APP CONTAINER -->
+    <div id="app-container" class="flex-1 flex overflow-hidden">
+
+        <!-- ================= AUTH VIEW (LOGIN / REGISTER) ================= -->
+        <div id="auth-view" class="flex-1 flex items-center justify-center p-4">
+            <div class="w-full max-w-md bg-cardBg border border-slate-800 rounded-xl p-8 shadow-2xl relative overflow-hidden">
+                <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-neonCyan to-neonViolet"></div>
+
+                <div class="text-center mb-8">
+                    <div class="inline-flex p-3 rounded-lg bg-slate-900 border border-slate-800 text-neonCyan mb-3 shadow-inner">
+                        <i data-lucide="terminal" class="w-8 h-8"></i>
+                    </div>
+                    <h1 class="text-2xl font-bold tracking-tight text-white">NEXUSCHAT</h1>
+                    <p class="text-xs text-slate-400 mt-1">SECURE REAL-TIME COMMS TERMINAL</p>
+                </div>
+
+                <!-- Tabs -->
+                <div class="flex border-b border-slate-800 mb-6">
+                    <button type="button" onclick="switchAuthTab('login')" id="tab-login" class="flex-1 pb-3 text-sm font-bold border-b-2 border-neonViolet text-white transition">Sign In</button>
+                    <button type="button" onclick="switchAuthTab('register')" id="tab-register" class="flex-1 pb-3 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-300 transition">Register</button>
+                </div>
+
+                <!-- Auth Form -->
+                <form id="auth-form" onsubmit="handleAuthSubmit(event)" class="space-y-4">
+                    <div id="username-field" class="hidden">
+                        <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Username / Alias</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500"><i data-lucide="user" class="w-4 h-4"></i></span>
+                            <input type="text" id="username" placeholder="operator_01" class="w-full bg-slate-900 border border-slate-800 rounded-lg py-2.5 pl-10 pr-4 text-sm text-slate-200 focus:outline-none focus:border-neonCyan transition">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Email Address</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500"><i data-lucide="mail" class="w-4 h-4"></i></span>
+                            <input type="email" id="email" required placeholder="user@nexus.io" class="w-full bg-slate-900 border border-slate-800 rounded-lg py-2.5 pl-10 pr-4 text-sm text-slate-200 focus:outline-none focus:border-neonCyan transition">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Password</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500"><i data-lucide="key" class="w-4 h-4"></i></span>
+                            <input type="password" id="password" required placeholder="••••••••" class="w-full bg-slate-900 border border-slate-800 rounded-lg py-2.5 pl-10 pr-4 text-sm text-slate-200 focus:outline-none focus:border-neonCyan transition">
+                        </div>
+                    </div>
+
+                    <button type="submit" id="auth-submit-btn" class="w-full bg-gradient-to-r from-neonCyan to-neonViolet text-slate-950 font-bold py-3 rounded-lg text-sm tracking-wide hover:opacity-90 transition shadow-lg mt-2">
+                        AUTHENTICATE SECURELY
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- ================= CHAT DASHBOARD VIEW ================= -->
+        <div id="dashboard-view" class="hidden flex-1 flex overflow-hidden">
+
+            <!-- SIDEBAR: Conversations -->
+            <aside class="w-80 bg-cardBg border-r border-slate-800 flex flex-col">
+                <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-8 h-8 rounded bg-slate-900 border border-slate-800 flex items-center justify-center text-neonCyan font-bold" id="user-avatar-initial">U</div>
+                        <div>
+                            <div id="sidebar-username" class="text-sm font-bold text-white truncate w-36">Operator</div>
+                            <div class="text-[10px] text-emerald-400 flex items-center space-x-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span> <span>ONLINE</span></div>
+                        </div>
+                    </div>
+                    <button type="button" onclick="openNewChatModal()" class="p-2 rounded-lg bg-slate-900 border border-slate-800 text-neonCyan hover:bg-slate-800 transition" title="Initialize Channel">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <!-- Conversation Search -->
+                <div class="p-3 border-b border-slate-800/60">
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500"><i data-lucide="search" class="w-3.5 h-3.5"></i></span>
+                        <input type="text" id="sidebar-search" oninput="filterConversations()" placeholder="Search channels..." class="w-full bg-slate-900 border border-slate-800 rounded-md py-1.5 pl-9 pr-3 text-xs text-slate-300 focus:outline-none focus:border-neonCyan transition">
+                    </div>
+                </div>
+
+                <!-- Channels List -->
+                <div id="conversations-list" class="flex-1 overflow-y-auto divide-y divide-slate-900/40 p-2 space-y-1">
+                    <div class="text-center py-8 text-slate-500 text-xs">Scanning frequencies...</div>
+                </div>
+            </aside>
+
+            <!-- MAIN CHAT INTERFACE -->
+            <main class="flex-1 flex flex-col bg-slate-950">
+                <!-- No chat selected state -->
+                <div id="no-chat-selected" class="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-500">
+                    <div class="p-4 rounded-2xl bg-cardBg border border-slate-800 mb-4 text-neonViolet shadow-xl">
+                        <i data-lucide="messages-square" class="w-10 h-10"></i>
+                    </div>
+                    <h2 class="text-lg font-bold text-slate-300 tracking-wide">NO CONVERSATION SELECTED</h2>
+                    <p class="text-xs text-slate-500 max-w-sm mt-1">Select a communication channel from the sidebar or initialize a new one to begin transmitting messages.</p>
+                </div>
+
+                <!-- Active Chat Room -->
+                <div id="active-chat-room" class="hidden flex-1 flex flex-col h-full">
+                    <!-- Chat Header -->
+                    <header class="bg-cardBg border-b border-slate-800 px-6 py-3.5 flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-neonCyan font-bold" id="active-chat-icon">#</div>
+                            <div>
+                                <h3 id="active-chat-title" class="text-sm font-bold text-white tracking-wide">Channel Title</h3>
+                                <p id="active-chat-subtitle" class="text-[11px] text-slate-400">Secure encrypted feed</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button type="button" onclick="openChatSettingsModal()" class="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition" title="Channel Settings">
+                                <i data-lucide="settings" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </header>
+
+                    <!-- Message Feed -->
+                    <div id="message-feed" class="flex-1 overflow-y-auto p-6 space-y-4 flex flex-col">
+                        <!-- Messages populated dynamically -->
+                    </div>
+
+                    <!-- Message Input Box -->
+                    <div class="p-4 bg-cardBg border-t border-slate-800">
+                        <form id="message-form" onsubmit="handleSendMessage(event)" class="flex items-center space-x-3">
+                            <input type="text" id="message-input" autocomplete="off" placeholder="Transmit secure message..." class="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-neonCyan transition">
+                            <button type="submit" class="bg-neonCyan hover:bg-cyan-400 text-slate-950 font-bold px-6 py-3 rounded-lg text-sm transition flex items-center space-x-2 shadow-lg">
+                                <span>SEND</span>
+                                <i data-lucide="send" class="w-4 h-4"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+    </div>
+
+    <!-- NEW CHANNEL MODAL -->
+    <div id="new-chat-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-cardBg border border-slate-800 rounded-xl w-full max-w-md p-6 shadow-2xl relative">
+            <h3 class="text-lg font-bold text-white mb-4 flex items-center space-x-2">
+                <i data-lucide="radio" class="w-5 h-5 text-neonCyan"></i>
+                <span>Initialize Channel</span>
+            </h3>
+
+            <form onsubmit="handleCreateChat(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Channel Type</label>
+                    <select id="chat-type" onchange="toggleGroupFields()" class="w-full bg-slate-900 border border-slate-800 rounded-lg py-2.5 px-3 text-sm text-slate-200 focus:outline-none focus:border-neonCyan">
+                        <option value="dm">Direct Transmission (1-on-1)</option>
+                        <option value="group">Secure Group Network</option>
+                    </select>
+                </div>
+
+                <div id="group-name-field" class="hidden">
+                    <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Network Name</label>
+                    <input type="text" id="group-name" placeholder="Alpha Squad" class="w-full bg-slate-900 border border-slate-800 rounded-lg py-2.5 px-3 text-sm text-slate-200 focus:outline-none focus:border-neonCyan">
+                </div>
+
+                <div>
+                    <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Participant User IDs (Comma Separated)</label>
+                    <input type="text" id="participant-ids" required placeholder="2, 3, 5" class="w-full bg-slate-900 border border-slate-800 rounded-lg py-2.5 px-3 text-sm text-slate-200 focus:outline-none focus:border-neonCyan">
+                </div>
+
+                <div class="flex space-x-3 pt-2">
+                    <button type="button" onclick="closeNewChatModal()" class="flex-1 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-bold py-2.5 rounded-lg text-sm transition">Cancel</button>
+                    <button type="submit" class="flex-1 bg-neonCyan hover:bg-cyan-400 text-slate-950 font-bold py-2.5 rounded-lg text-sm transition">Establish</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- CHANNEL SETTINGS MODAL -->
+    <div id="settings-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-cardBg border border-slate-800 rounded-xl w-full max-w-md p-6 shadow-2xl relative">
+            <h3 class="text-lg font-bold text-white mb-4 flex items-center space-x-2">
+                <i data-lucide="shield-alert" class="w-5 h-5 text-neonViolet"></i>
+                <span>Channel Management</span>
+            </h3>
+
+            <div class="space-y-4">
+                <div id="settings-members-section">
+                    <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Members (<span id="settings-members-count">0</span>)</label>
+                    <div id="settings-members-list" class="max-h-48 overflow-y-auto space-y-1 border border-slate-800 rounded-lg p-2 bg-slate-900/50"></div>
+                </div>
+
+                <div id="settings-rename-section" class="hidden">
+                    <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Rename Group Network</label>
+                    <div class="flex space-x-2">
+                        <input type="text" id="settings-group-name" class="flex-1 bg-slate-900 border border-slate-800 rounded-lg py-2 px-3 text-sm text-slate-200 focus:outline-none focus:border-neonCyan">
+                        <button type="button" onclick="updateGroupName()" class="bg-neonViolet hover:bg-violet-600 text-white font-bold px-4 py-2 rounded-lg text-xs transition">Update</button>
+                    </div>
+                </div>
+
+                <div id="settings-add-member-section" class="hidden">
+                    <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Add Operative ID</label>
+                    <div class="flex space-x-2">
+                        <input type="number" id="settings-new-member-id" placeholder="User ID" class="flex-1 bg-slate-900 border border-slate-800 rounded-lg py-2 px-3 text-sm text-slate-200 focus:outline-none focus:border-neonCyan">
+                        <button type="button" onclick="addGroupMember()" class="bg-neonCyan hover:bg-cyan-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs transition">Enroll</button>
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-slate-800 flex flex-col space-y-2">
+                    <button type="button" onclick="leaveCurrentChat()" class="w-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-bold py-2.5 rounded-lg text-xs transition">
+                        Sever Connection (Leave Channel)
+                    </button>
+                    <button type="button" onclick="closeChatSettingsModal()" class="w-full bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-bold py-2.5 rounded-lg text-xs transition">Close Terminal</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-cardBg border border-slate-800 text-slate-200 px-4 py-3 rounded-lg shadow-2xl z-50 transform translate-y-20 opacity-0 transition-all duration-300 flex items-center space-x-3">
+        <span id="toast-icon" class="text-neonCyan"><i data-lucide="info" class="w-5 h-5"></i></span>
+        <span id="toast-message" class="text-xs font-mono">Notification payload received.</span>
+    </div>
+
+    <!-- APPLICATION CONTROLLER SCRIPT -->
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        let API_BASE = localStorage.getItem('api_base') || 'http://localhost:8000';
+        document.getElementById('api-base-url').value = API_BASE;
+
+        let socket = null;
+        let currentUser = null;
+        let token = localStorage.getItem('token') || null;
+        let conversations = [];
+        let activeConversation = null;
+        let authMode = 'login'; // 'login' | 'register'
+        let toastTimer = null;
+
+        // On load check auth
+        window.addEventListener('DOMContentLoaded', () => {
+            if (token) {
+                verifyTokenAndInit();
+            }
+        });
+
+        function updateApiBase() {
+            API_BASE = document.getElementById('api-base-url').value.trim();
+            localStorage.setItem('api_base', API_BASE);
+            showToast("API Gateway updated successfully.");
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            const msg = document.getElementById('toast-message');
+            msg.textContent = message;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3500);
+        }
+
+        // --- AUTH TABS & SUBMISSION ---
+        // Single entry point for the form: always prevents the native submit
+        // and routes to the right handler based on the current tab.
+        function handleAuthSubmit(e) {
+            e.preventDefault();
+            return authMode === 'login' ? handleLogin(e) : handleRegister(e);
+        }
+
+        function switchAuthTab(tab) {
+            authMode = tab;
+            const loginTab = document.getElementById('tab-login');
+            const regTab = document.getElementById('tab-register');
+            const userField = document.getElementById('username-field');
+            const submitBtn = document.getElementById('auth-submit-btn');
+
+            if (tab === 'login') {
+                loginTab.className = "flex-1 pb-3 text-sm font-bold border-b-2 border-neonViolet text-white transition";
+                regTab.className = "flex-1 pb-3 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-300 transition";
+                userField.classList.add('hidden');
+                submitBtn.textContent = "AUTHENTICATE SECURELY";
+            } else {
+                regTab.className = "flex-1 pb-3 text-sm font-bold border-b-2 border-neonViolet text-white transition";
+                loginTab.className = "flex-1 pb-3 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-300 transition";
+                userField.classList.remove('hidden');
+                submitBtn.textContent = "CREATE CREDENTIALS";
+            }
+        }
+
+        async function handleLogin(e) {
+            if (e) e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const res = await fetch(`${API_BASE}/user/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(parseError(data, "Authentication failed"));
+
+                token = data.access_token || data.token;
+                if (!token) throw new Error("Server did not return a token");
+                localStorage.setItem('token', token);
+                showToast("Authentication successful.");
+                verifyTokenAndInit();
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        async function handleRegister(e) {
+            if (e) e.preventDefault();
+            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const res = await fetch(`${API_BASE}/user/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, password })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(parseError(data, "Registration failed"));
+
+                showToast("Credentials created successfully. Please sign in.");
+                switchAuthTab('login');
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        async function verifyTokenAndInit() {
+            try {
+                const res = await fetch(`${API_BASE}/user/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) throw new Error("Session expired");
+                currentUser = await res.json();
+
+                // Transition UI
+                document.getElementById('auth-view').classList.add('hidden');
+                document.getElementById('dashboard-view').classList.remove('hidden');
+                document.getElementById('current-user-badge').classList.remove('hidden');
+                document.getElementById('current-user-badge').textContent = `[ID: ${currentUser.id}]`;
+                document.getElementById('logout-btn').classList.remove('hidden');
+                document.getElementById('sidebar-username').textContent = currentUser.username || currentUser.email;
+                document.getElementById('user-avatar-initial').textContent = (currentUser.username || currentUser.email)[0].toUpperCase();
+
+                // Initialize Socket.IO connection
+                initSocket();
+
+                // Load Conversations
+                loadConversations();
+            } catch (err) {
+                logout();
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            token = null;
+            currentUser = null;
+            conversations = [];
+            activeConversation = null;
+
+            // Fully tear down the socket so the next login starts clean
+            if (socket) {
+                socket.removeAllListeners();
+                socket.disconnect();
+                socket = null;
+            }
+
+            // Clear stale UI state so one user's data never shows for the next
+            document.getElementById('message-feed').innerHTML = '';
+            document.getElementById('conversations-list').innerHTML = '';
+            document.getElementById('sidebar-search').value = '';
+            document.getElementById('active-chat-room').classList.add('hidden');
+            document.getElementById('no-chat-selected').classList.remove('hidden');
+            document.getElementById('settings-modal').classList.add('hidden');
+            document.getElementById('new-chat-modal').classList.add('hidden');
+            document.getElementById('auth-form').reset();
+
+            document.getElementById('auth-view').classList.remove('hidden');
+            document.getElementById('dashboard-view').classList.add('hidden');
+            document.getElementById('current-user-badge').classList.add('hidden');
+            document.getElementById('logout-btn').classList.add('hidden');
+
+            switchAuthTab('login');
+            setSocketStatus(false);
+            showToast("Session terminated.");
+        }
+
+        // --- SOCKET.IO REAL-TIME ENGINE ---
+        function initSocket() {
+            // Prevent duplicate connections / duplicate listeners
+            if (socket) {
+                socket.removeAllListeners();
+                socket.disconnect();
+                socket = null;
+            }
+
+            socket = io(API_BASE, {
+                auth: { token: token }
+            });
+
+            socket.on('connect', () => {
+                setSocketStatus(true);
+                // Re-join the active room after a reconnect
+                if (activeConversation) {
+                    socket.emit('join_room', { conversation_id: activeConversation.id });
+                }
+            });
+
+            socket.on('disconnect', () => {
+                setSocketStatus(false);
+            });
+
+            socket.on('connect_error', () => {
+                setSocketStatus(false);
+            });
+
+            // Listen for live incoming messages
+            socket.on('new_message', (msg) => {
+                if (activeConversation && msg.conversation_id === activeConversation.id) {
+                    appendMessageToFeed(msg);
+                } else {
+                    showToast(`New transmission in channel #${msg.conversation_id}`);
+                }
+            });
+        }
+
+        function setSocketStatus(isConnected) {
+            const dot = document.getElementById('socket-status');
+            const txt = document.getElementById('socket-status-text');
+            if (isConnected) {
+                dot.className = "inline-block w-2.5 h-2.5 rounded-full bg-emerald-400";
+                txt.className = "text-emerald-400 font-bold";
+                txt.textContent = "ONLINE // SECURE";
+            } else {
+                dot.className = "inline-block w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse";
+                txt.className = "text-rose-400 font-bold";
+                txt.textContent = "DISCONNECTED";
+            }
+        }
+
+        // --- CONVERSATIONS & CHAT LOADING ---
+        async function loadConversations() {
+            try {
+                const res = await fetch(`${API_BASE}/chat/conversations`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) throw new Error("Failed to load channels");
+                conversations = await res.json();
+                renderConversations(conversations);
+                hydrateConversations(); // fills in names if the list endpoint has no participants
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        // Fallback: if /chat/conversations returns no participants, fetch each
+        // conversation's details (which include participants) and merge them in.
+        async function hydrateConversations() {
+            const snapshot = conversations;
+            const missing = snapshot.filter(c => !Array.isArray(c.participants));
+            if (missing.length === 0) return;
+
+            await Promise.all(missing.map(async (c) => {
+                try {
+                    const res = await fetch(`${API_BASE}/chat/conversations/${c.id}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (!res.ok) return;
+                    const detail = await res.json();
+                    if (Array.isArray(detail.participants)) c.participants = detail.participants;
+                } catch (_) { /* leave the fallback label */ }
+            }));
+
+            // Ignore if the user logged out / list was reloaded while fetching
+            if (snapshot !== conversations) return;
+            filterConversations();
+        }
+
+        // Group -> group name. Direct chat -> the other person's name.
+        function convDisplayName(c) {
+            if (c.is_group) return c.name || 'Unnamed network';
+            const other = (c.participants || []).find(u => pid(u) !== currentUser.id);
+            return other ? memberName(other) : `Direct Channel #${c.id}`;
+        }
+
+        function renderConversations(list) {
+            const container = document.getElementById('conversations-list');
+            if (!list || list.length === 0) {
+                container.innerHTML = `<div class="text-center py-8 text-slate-500 text-xs">No active channels found.</div>`;
+                return;
+            }
+
+            container.innerHTML = list.map(c => `
+                <div onclick="selectConversation(${c.id})" class="p-3 rounded-lg cursor-pointer transition flex items-center justify-between group ${activeConversation && activeConversation.id === c.id ? 'bg-slate-900 border border-slate-800' : 'hover:bg-slate-900/50'}">
+                    <div class="flex items-center space-x-3 overflow-hidden">
+                        <div class="w-9 h-9 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-neonCyan font-bold shrink-0">
+                            ${c.is_group ? '<i data-lucide="users" class="w-4 h-4"></i>' : '<i data-lucide="user" class="w-4 h-4"></i>'}
+                        </div>
+                        <div class="truncate">
+                            <div class="text-xs font-bold text-slate-200 truncate">${escapeHtml(convDisplayName(c))}</div>
+                            <div class="text-[10px] text-slate-500 truncate">${c.is_group ? 'Group Network' : 'Direct Message'}</div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function filterConversations() {
+            const query = document.getElementById('sidebar-search').value.toLowerCase();
+            const filtered = conversations.filter(c => {
+                return convDisplayName(c).toLowerCase().includes(query);
+            });
+            renderConversations(filtered);
+        }
+
+        async function selectConversation(id) {
+            try {
+                const res = await fetch(`${API_BASE}/chat/conversations/${id}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) throw new Error("Failed to load channel details");
+                activeConversation = await res.json();
+
+                // UI transition
+                document.getElementById('no-chat-selected').classList.add('hidden');
+                document.getElementById('active-chat-room').classList.remove('hidden');
+                updateChatHeader();
+
+                renderConversations(conversations); // highlight active
+
+                // Join the room on the backend
+                if (socket) {
+                    socket.emit('join_room', { conversation_id: id });
+                }
+
+                // Load historical messages
+                loadMessages(id);
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        async function loadMessages(conversationId) {
+            try {
+                const res = await fetch(`${API_BASE}/chat/conversations/${conversationId}/messages`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) throw new Error("Failed to load message history");
+                const messages = await res.json();
+
+                // Ignore stale responses if the user switched channels meanwhile
+                if (!activeConversation || activeConversation.id !== conversationId) return;
+
+                const feed = document.getElementById('message-feed');
+                feed.innerHTML = '';
+                messages.forEach(msg => appendMessageToFeed(msg));
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        function appendMessageToFeed(msg) {
+            if (!currentUser) return;
+            const feed = document.getElementById('message-feed');
+            const isMe = msg.sender_id === currentUser.id;
+
+            const div = document.createElement('div');
+            div.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'} mb-3`;
+            div.innerHTML = `
+                <div class="flex items-center space-x-2 mb-1">
+                    <span class="text-[10px] text-slate-500">${escapeHtml(isMe ? 'You' : getUserName(msg.sender_id))}</span>
+                    <span class="text-[10px] text-slate-600">${new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                </div>
+                <div class="max-w-md px-4 py-2.5 rounded-xl text-sm ${isMe ? 'bg-neonCyan/10 border border-neonCyan/30 text-slate-100 rounded-br-none' : 'bg-cardBg border border-slate-800 text-slate-200 rounded-bl-none'}">
+                    ${escapeHtml(msg.content)}
+                </div>
+            `;
+            feed.appendChild(div);
+            feed.scrollTop = feed.scrollHeight;
+        }
+
+        function parseError(data, fallback) {
+            if (!data || data.detail === undefined) return fallback;
+            const d = data.detail;
+            if (typeof d === 'string') return d;
+            if (Array.isArray(d)) {
+                return d.map(e => `${(e.loc || []).slice(1).join('.')}: ${e.msg}`).join(' | ');
+            }
+            return JSON.stringify(d);
+        }
+
+        // --- PARTICIPANT HELPERS ---
+        function getParticipants() {
+            return (activeConversation && Array.isArray(activeConversation.participants))
+                ? activeConversation.participants : [];
+        }
+
+        // Works with both shapes: {id, username, email} or raw rows {id, user_id, ...}
+        function pid(u) { return u.user_id !== undefined ? u.user_id : u.id; }
+        function memberName(u) { return u.username || u.email || `User #${pid(u)}`; }
+
+        function getUserName(userId) {
+            const p = getParticipants().find(u => pid(u) === userId);
+            return p ? memberName(p) : `Operative #${userId}`;
+        }
+
+        function updateChatHeader() {
+            const c = activeConversation;
+            if (!c) return;
+            const members = getParticipants();
+            let title;
+            if (c.is_group) {
+                title = c.name || 'Unnamed network';
+            } else {
+                const other = members.find(u => pid(u) !== currentUser.id);
+                title = other ? memberName(other) : `Direct Transmission #${c.id}`;
+            }
+            document.getElementById('active-chat-title').textContent = title;
+            document.getElementById('active-chat-subtitle').textContent = c.is_group
+                ? `${members.length} operatives: ${members.map(memberName).join(', ')}`
+                : 'Encrypted P2P link';
+            document.getElementById('active-chat-icon').innerHTML = c.is_group
+                ? '<i data-lucide="users" class="w-5 h-5"></i>'
+                : '<i data-lucide="user" class="w-5 h-5"></i>';
+            lucide.createIcons();
+        }
+
+        function renderMembersList() {
+            const members = getParticipants();
+            const list = document.getElementById('settings-members-list');
+            document.getElementById('settings-members-count').textContent = members.length;
+            const canRemove = activeConversation && activeConversation.is_group;
+
+            list.innerHTML = members.map(u => {
+                const isSelf = currentUser && pid(u) === currentUser.id;
+                return `
+                    <div class="flex items-center justify-between px-2 py-1.5 rounded bg-slate-900 border border-slate-800">
+                        <div class="overflow-hidden">
+                            <div class="text-xs text-slate-200 truncate">${escapeHtml(memberName(u))}${isSelf ? ' <span class="text-neonCyan">(you)</span>' : ''}</div>
+                            <div class="text-[10px] text-slate-500 truncate">ID ${pid(u)}${u.email ? ' &middot; ' + escapeHtml(u.email) : ''}</div>
+                        </div>
+                        ${canRemove && !isSelf ? `<button type="button" onclick="removeMember(${pid(u)})" class="text-[10px] text-rose-400 hover:text-rose-300 border border-rose-500/30 rounded px-2 py-1 transition">Remove</button>` : ''}
+                    </div>`;
+            }).join('') || '<div class="text-xs text-slate-500 text-center py-2">No members.</div>';
+        }
+
+        async function removeMember(targetUserId) {
+            if (!activeConversation) return;
+            if (!confirm(`Remove user ${getUserName(targetUserId)} from this channel?`)) return;
+            try {
+                const res = await fetch(`${API_BASE}/chat/conversations/${activeConversation.id}/participants/${targetUserId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(parseError(data, "Removal failed"));
+                showToast("Operative removed.");
+                await selectConversation(activeConversation.id);
+                renderMembersList();
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        function escapeHtml(text) {
+            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+            return String(text).replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+
+        // --- SENDING MESSAGES VIA SOCKET.IO (REAL-TIME) ---
+        function handleSendMessage(e) {
+            e.preventDefault();
+            const input = document.getElementById('message-input');
+            const content = input.value.trim();
+            if (!content || !activeConversation) return;
+
+            if (!socket || !socket.connected) {
+                showToast("Socket connection offline. Transmitting via REST fallback...", "error");
+                sendViaRestFallback(activeConversation.id, content);
+                input.value = '';
+                return;
+            }
+
+            // Emit message live; backend saves it and broadcasts to the room
+            socket.emit('send_message', {
+                conversation_id: activeConversation.id,
+                content: content
+            }, (response) => {
+                if (response && response.error) {
+                    showToast(response.error, 'error');
+                }
+            });
+
+            input.value = '';
+        }
+
+        async function sendViaRestFallback(conversationId, content) {
+            try {
+                const res = await fetch(`${API_BASE}/chat/conversations/${conversationId}/messages`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ content })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(parseError(data, "Transmission failed"));
+                appendMessageToFeed(data);
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        // --- NEW CHAT MODAL ---
+        function openNewChatModal() {
+            document.getElementById('new-chat-modal').classList.remove('hidden');
+        }
+        function closeNewChatModal() {
+            document.getElementById('new-chat-modal').classList.add('hidden');
+        }
+        function toggleGroupFields() {
+            const type = document.getElementById('chat-type').value;
+            const groupField = document.getElementById('group-name-field');
+            if (type === 'group') {
+                groupField.classList.remove('hidden');
+                document.getElementById('group-name').required = true;
+            } else {
+                groupField.classList.add('hidden');
+                document.getElementById('group-name').required = false;
+            }
+        }
+
+        async function handleCreateChat(e) {
+            e.preventDefault();
+            const type = document.getElementById('chat-type').value;
+            const isGroup = type === 'group';
+            const name = document.getElementById('group-name').value.trim();
+            const rawIds = document.getElementById('participant-ids').value;
+            const participant_ids = rawIds.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+
+            try {
+                const res = await fetch(`${API_BASE}/chat/conversations`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ is_group: isGroup, name: isGroup ? name : null, participant_ids })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(parseError(data, "Channel initialization failed"));
+
+                showToast("Channel established successfully.");
+                closeNewChatModal();
+                await loadConversations();
+                selectConversation(data.id);
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        // --- CHANNEL SETTINGS MODAL ---
+        function openChatSettingsModal() {
+            if (!activeConversation) return;
+            renderMembersList();
+            const modal = document.getElementById('settings-modal');
+            const renameSec = document.getElementById('settings-rename-section');
+            const addMemberSec = document.getElementById('settings-add-member-section');
+
+            if (activeConversation.is_group) {
+                renameSec.classList.remove('hidden');
+                addMemberSec.classList.remove('hidden');
+                document.getElementById('settings-group-name').value = activeConversation.name || '';
+            } else {
+                renameSec.classList.add('hidden');
+                addMemberSec.classList.add('hidden');
+            }
+            modal.classList.remove('hidden');
+        }
+        function closeChatSettingsModal() {
+            document.getElementById('settings-modal').classList.add('hidden');
+        }
+
+        async function updateGroupName() {
+            const name = document.getElementById('settings-group-name').value.trim();
+            if (!name) return;
+            try {
+                const res = await fetch(`${API_BASE}/chat/conversations/${activeConversation.id}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ name })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(parseError(data, "Update failed"));
+                showToast("Group network updated.");
+                closeChatSettingsModal();
+                await loadConversations();
+                selectConversation(activeConversation.id);
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        async function addGroupMember() {
+            const newUserId = document.getElementById('settings-new-member-id').value;
+            if (!newUserId) return;
+            try {
+                const res = await fetch(`${API_BASE}/chat/conversations/${activeConversation.id}/participants?new_user_id=${encodeURIComponent(newUserId)}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(parseError(data, "Enrollment failed"));
+                showToast("Operative successfully enrolled.");
+                document.getElementById('settings-new-member-id').value = '';
+                await selectConversation(activeConversation.id);
+                renderMembersList();
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        async function leaveCurrentChat() {
+            try {
+                const res = await fetch(`${API_BASE}/chat/conversations/${activeConversation.id}/leave`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) throw new Error("Failed to sever connection");
+                showToast("Successfully disconnected from channel.");
+                closeChatSettingsModal();
+                document.getElementById('active-chat-room').classList.add('hidden');
+                document.getElementById('no-chat-selected').classList.remove('hidden');
+                document.getElementById('message-feed').innerHTML = '';
+                activeConversation = null;
+                loadConversations();
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
