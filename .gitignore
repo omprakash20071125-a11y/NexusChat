@@ -1,0 +1,65 @@
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# ---------- Virtual environments ----------
+venv/
+.venv/
+env/
+ENV/
+
+# ---------- Environment variables & secrets ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ---------- Database ----------
+*.db
+*.sqlite
+*.sqlite3
+# Docker volume data (if mounted locally)
+pgdata/
+mysql-data/
+db-data/
+
+# ---------- Alembic ----------
+# Keep migrations/ and alembic.ini committed.
+# Do NOT ignore migrations/versions/.
+
+# ---------- Logs ----------
+*.log
+logs/
+
+# ---------- Testing & coverage ----------
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# ---------- IDEs & editors ----------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ---------- OS files ----------
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ---------- Jupyter ----------
+.ipynb_checkpoints/
