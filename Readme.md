@@ -541,7 +541,3 @@ Honest notes on the current state, and sensible next steps:
 | `403 You are not a participant` | Calling a conversation you've left or never joined | Re-add the user to the group |
 
 ---
-
-## License
-
-Add your license here (for example, MIT).
